@@ -68,6 +68,15 @@ function love.keypressed (key)
 		rls[1] = mini
 		rls[0] = mini
 		map = maps.process.cellular(map, tx, ty, 1, rls)
+	elseif key == "3" then
+		local rls = {}
+		rls.neighborhood = 21 -- two-tiered Von Neumann
+		rls[4] = {"wall", "wall"}
+		rls[3] = {"wall", "stay"}
+		rls[2] = {"stay", "stay"}
+		rls[1] = {"floor", "stay"}
+		rls[0] = {"floor", "stay"}
+		map = maps.process.cellular(map, tx, ty, 1, rls)
 	end
 end
 

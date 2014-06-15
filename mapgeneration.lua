@@ -100,6 +100,12 @@ function maps.process.cellular (map, width, height,iterations, rules)
 								end		
 							end
 						end	
+						-- make sure all rules exist for the next loop --
+						for i=0, 24 do
+							if not rules[i] then
+								rules[i] = {"stay", "stay"}
+							end
+						end
 					else -- Moore neighborhood 
 						for nx=(-2), 2 do
 							for ny=(-2), 2 do
@@ -113,21 +119,19 @@ function maps.process.cellular (map, width, height,iterations, rules)
 							end
 						end
 					end
-					-- make sure all rules exist for the next loop --
-					for i=0, 24 do
-						if not rules[i] then
-							rules[i] = {"stay", "stay"}
-						end
-					end
 					-- take action based on the number of neighbors and store the results in the temporary map --
+					local touched = false
 					for i=1, 2 do
 						if rules[neighbors[i]][i] == "flip" then
 							map2[w][h] = not map[w][h]
+							touched = true
 						elseif rules[neighbors[i]][i] == "floor" then
 							map2[w][h] = false
+							touched = true
 						elseif rules[neighbors[i]][i] == "wall" then
 							map2[w][h] = true
-						else
+							touched = true
+						elseif not touched then
 							map2[w][h] = map[w][h]
 						end
 					end

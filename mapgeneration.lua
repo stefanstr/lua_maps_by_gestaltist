@@ -36,7 +36,6 @@ function maps.process.cellular (map, width, height,iterations, rules)
 		-- true means wall
 	-- rules is a map with any of the following rules as keys and numbers
 		-- allowed keys for the rules table are:
-		--"neighborhood" = 1  (von neumann) or 2 (von neumann extended) - otherwise, moore neighborhood is used
 		--"include_self" = whether the cell itself should be counted as part of the neighborhood. Default is false. 
 		--[numeric key] = state (number of neighboring walls is the key, its value (state) says what should happen)
 			-- possible states are:
@@ -48,6 +47,12 @@ function maps.process.cellular (map, width, height,iterations, rules)
 			-- "start" - before transformations
 			-- "end" - after transformations
 			-- "both" - both
+		--"neighborhood" = 1  (von neumann) or 2 (von neumann extended) - otherwise, moore neighborhood is used
+			-- = 20 = Moore calculated separately for one away and two away
+			-- = 21 = Von Neumann calculated separately for one away and two away
+			-- with these two neighborhoods values or rules are tables that store the behavior for
+			-- one tile away and two tiles away, e.g., rules[1] = {"wall", "stay"}
+			-- include_self is ignored for this kind of rules
 			
 	-- fullproofing the map against out of range queries (makes neighborhood calculations easier) --
 	local _mtrow = {__index = function () return false end}
@@ -75,41 +80,90 @@ function maps.process.cellular (map, width, height,iterations, rules)
 	end
 
 	local rn = rules.neighborhood
-	if (rn ~= 1) and (rn ~=2) then rn = nil end -- other numbers would 
-	for n=1, iterations do
+	for n=1, iterations do -- main loop
 		for w=1, width do
 			for h=1, height do
-				-- calculate the number of neighbors --
-				local neighbors = 0 
-				if rn then -- von neumann neighborhood
-					for n=(-rn), rn do
-						if (n ~= 0) then
-							if map[w+n][h] then neighbors = neighbors + 1 end
-							if map[w][h+n] then neighbors = neighbors + 1 end	
-						elseif rules.include_self then
-							if map[w][h] then neighbors = neighbors + 1 end
-						end		
-					end	
-				else -- Moore neighborhood used as default
-					for nx=(-1), 1 do
-						for ny=(-1), 1 do
-							if (nx ~= 0) or (ny ~= 0) then
-								if map[w+nx][h+ny] then neighbors = neighbors + 1 end
-							elseif rules.include_self then
-								if map[w][h] then neighbors = neighbors + 1 end
+				if (rn == 20) or (rn == 21) then -- two-tier neighborhood
+					-- calculate the number of neighbors --
+					local neighbors = {}
+					neighbors[1] = 0 -- 1 tile away
+					neighbors[2] = 0 -- 2 tiles away
+					if rn == 21 then -- von neumann neighborhood
+						for n=(-2), 2 do
+							if (n ~= 0) then
+								if math.abs(n) == 1 then
+									if map[w+n][h] then neighbors[1] = neighbors[1] + 1 end
+									if map[w][h+n] then neighbors[1] = neighbors[1] + 1 end	
+								elseif math.abs(n) == 2 then
+									if map[w+n][h] then neighbors[2] = neighbors[2] + 1 end
+									if map[w][h+n] then neighbors[2] = neighbors[2] + 1 end	
+								end		
+							end
+						end	
+					else -- Moore neighborhood 
+						for nx=(-2), 2 do
+							for ny=(-2), 2 do
+								if (nx ~= 0) or (ny ~= 0) then
+									if math.abs(nx) == 2 or math.abs(ny) == 2 then
+										if map[w+nx][h+ny] then neighbors[2] = neighbors[2] + 1 end
+									else
+										if map[w+nx][h+ny] then neighbors[1] = neighbors[1] + 1 end
+									end
+								end
 							end
 						end
 					end
-				end
-				-- take action based on the number of neighbors and store the results in the temporary map --
-				if rules[neighbors] == "flip" then
-					map2[w][h] = not map[w][h]
-				elseif rules[neighbors] == "floor" then
-					map2[w][h] = false
-				elseif rules[neighbors] == "wall" then
-					map2[w][h] = true
+					-- make sure all rules exist for the next loop --
+					for i=0, 8 do
+						if not rules[i] then
+							rules[i] = {"stay", "stay"}
+						end
+					end
+					-- take action based on the number of neighbors and store the results in the temporary map --
+					for i=1, 2 do
+						if rules[neighbors[i]][i] == "flip" then
+							map2[w][h] = not map[w][h]
+						elseif rules[neighbors[i]][i] == "floor" then
+							map2[w][h] = false
+						elseif rules[neighbors[i]][i] == "wall" then
+							map2[w][h] = true
+						else
+							map2[w][h] = map[w][h]
+						end
+					end
 				else
-					map2[w][h] = map[w][h]
+					-- calculate the number of neighbors --
+					local neighbors = 0 
+					if rn then -- von neumann neighborhood
+						for n=(-rn), rn do
+							if (n ~= 0) then
+								if map[w+n][h] then neighbors = neighbors + 1 end
+								if map[w][h+n] then neighbors = neighbors + 1 end	
+							elseif rules.include_self then
+								if map[w][h] then neighbors = neighbors + 1 end
+							end		
+						end	
+					else -- Moore neighborhood used as default
+						for nx=(-1), 1 do
+							for ny=(-1), 1 do
+								if (nx ~= 0) or (ny ~= 0) then
+									if map[w+nx][h+ny] then neighbors = neighbors + 1 end
+								elseif rules.include_self then
+									if map[w][h] then neighbors = neighbors + 1 end
+								end
+							end
+						end
+					end
+					-- take action based on the number of neighbors and store the results in the temporary map --
+					if rules[neighbors] == "flip" then
+						map2[w][h] = not map[w][h]
+					elseif rules[neighbors] == "floor" then
+						map2[w][h] = false
+					elseif rules[neighbors] == "wall" then
+						map2[w][h] = true
+					else
+						map2[w][h] = map[w][h]
+					end
 				end
 			end
 		end
@@ -334,7 +388,19 @@ end
 -- TEST 
 
 if arg[0] == 'mapgeneration.lua' then
-	map = maps.generate.prim(21,21, false)
+	rules = {}
+	rules.neighborhood = 20 -- two-tiered Moore
+	maxi = {"wall", "stay"}
+	mini = {"stay", "floor"}
+	for i=5, 12 do
+		rules[i] = maxi
+	end
+	rules[2] = mini
+	rules[1] = mini
+	rules[0] = mini
+	
+	map = maps.generate.cellular(24,24, 5, 45, rules)
+	map = maps.process.removeDisconnected(map)
 	for _,v in pairs(map) do
 		io.write("\n")
 		for _, z in pairs(v) do

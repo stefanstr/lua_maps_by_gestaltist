@@ -114,7 +114,7 @@ function maps.process.cellular (map, width, height,iterations, rules)
 						end
 					end
 					-- make sure all rules exist for the next loop --
-					for i=0, 8 do
+					for i=0, 24 do
 						if not rules[i] then
 							rules[i] = {"stay", "stay"}
 						end

@@ -55,7 +55,19 @@ function love.keypressed (key)
 		rls[7] = "wall"
 		rls[4] = "flip"
 
-		map = maps.process.cellular(map, tx, ty, iter, rls)
+		map = maps.process.cellular(map, tx, ty, 1, rls)
+	elseif key == "2" then
+		local rls = {}
+		rls.neighborhood = 20 -- two-tiered Moore
+		maxi = {"wall", "stay"}
+		mini = {"stay", "floor"}
+		for i=5, 24 do
+			rls[i] = maxi
+		end
+		rls[2] = mini
+		rls[1] = mini
+		rls[0] = mini
+		map = maps.process.cellular(map, tx, ty, 1, rls)
 	end
 end
 
